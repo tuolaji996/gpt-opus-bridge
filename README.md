@@ -151,8 +151,18 @@ Remove only the mcp_servers.pal registration using codex mcp remove pal for the 
 
 Keep your Claude settings, CC Switch profiles, and workspace files. Removing the bridge does not require deleting credentials or uninstalling either client.
 
-## Credits and license
+## Contributors
+
+This project was built with human direction and AI assistance:
+
+| Contributor | Role |
+|---|---|
+| [TuoLaji](https://github.com/tuolaji996) | Project owner; defined the goals and approved publication. |
+| **Claude** (via Claude Code) | AI contributor; implemented the configuration utility and its initial tests, then revised them after review. |
+| **ChatGPT (Codex)** | AI contributor; led planning and integration, reviewed and corrected the code, ran verification, and wrote and edited the README and article. |
+
+See [CONTRIBUTORS.md](CONTRIBUTORS.md) for attribution details.
+
+## License and upstream credits
 
 Configuration code and documentation are MIT licensed. The PAL patch is a modification of Apache-2.0-licensed PAL; see [NOTICE](NOTICE) and [PAL's license](third_party/PAL-LICENSE). Claude Code and Codex remain separate products.
-
-Claude assisted with the configuration utility and tests. Codex reviewed the implementation, ran the checks, and edited the README and article for technical accuracy and grammar.
