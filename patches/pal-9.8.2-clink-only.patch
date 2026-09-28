@@ -1,0 +1,135 @@
+diff --git a/conf/cli_clients/codex.json b/conf/cli_clients/codex.json
+deleted file mode 100644
+index 4f210ed..0000000
+--- a/conf/cli_clients/codex.json
++++ /dev/null
+@@ -1,25 +0,0 @@
+-{
+-  "name": "codex",
+-  "command": "codex",
+-  "additional_args": [
+-    "--json",
+-    "--dangerously-bypass-approvals-and-sandbox",
+-    "--enable",
+-    "web_search_request"
+-  ],
+-  "env": {},
+-  "roles": {
+-    "default": {
+-      "prompt_path": "systemprompts/clink/default.txt",
+-      "role_args": []
+-    },
+-    "planner": {
+-      "prompt_path": "systemprompts/clink/default_planner.txt",
+-      "role_args": []
+-    },
+-    "codereviewer": {
+-      "prompt_path": "systemprompts/clink/codex_codereviewer.txt",
+-      "role_args": []
+-    }
+-  }
+-}
+diff --git a/conf/cli_clients/gemini.json b/conf/cli_clients/gemini.json
+deleted file mode 100644
+index 966beac..0000000
+--- a/conf/cli_clients/gemini.json
++++ /dev/null
+@@ -1,22 +0,0 @@
+-{
+-  "name": "gemini",
+-  "command": "gemini",
+-  "additional_args": [
+-    "--yolo"
+-  ],
+-  "env": {},
+-  "roles": {
+-    "default": {
+-      "prompt_path": "systemprompts/clink/default.txt",
+-      "role_args": []
+-    },
+-    "planner": {
+-      "prompt_path": "systemprompts/clink/default_planner.txt",
+-      "role_args": []
+-    },
+-    "codereviewer": {
+-      "prompt_path": "systemprompts/clink/default_codereviewer.txt",
+-      "role_args": []
+-    }
+-  }
+-}
+diff --git a/pyproject.toml b/pyproject.toml
+index c60506d..361fcdb 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -4,7 +4,7 @@ version = "9.8.2"
+ description = "AI-powered MCP server with multiple model providers"
+ requires-python = ">=3.9"
+ dependencies = [
+-    "mcp>=1.0.0",
++    "mcp>=1.0.0,<2",
+     "google-genai>=1.19.0",
+     "openai>=1.55.2",
+     "pydantic>=2.0.0",
+diff --git a/server.py b/server.py
+index 74f7ed8..b98a5b4 100644
+--- a/server.py
++++ b/server.py
+@@ -540,6 +540,11 @@ def configure_providers():
+     if registered_providers:
+         logger.info(f"Registered providers: {', '.join(registered_providers)}")
+ 
++    # Local clink-only installation: CLI owns authentication; no API provider is needed.
++    if not valid_providers and set(TOOLS) <= {"clink", "version", "listmodels"}:
++        logger.info("CLI-only mode: no direct API providers configured")
++        return
++
+     # Require at least one valid provider
+     if not valid_providers:
+         raise ValueError(
+@@ -1111,6 +1116,12 @@ async def reconstruct_thread_context(arguments: dict[str, Any]) -> dict[str, Any
+     # Resolve an effective model for context reconstruction when DEFAULT_MODEL=auto
+     model_context = arguments.get("_model_context")
+ 
++    # CLI history does not require or select a direct API provider.
++    if context.tool_name == "clink" and not requires_model and model_context is None:
++        from utils.model_context import CLIHistoryContext
++        model_context = CLIHistoryContext()
++        arguments["_model_context"] = model_context
++
+     if requires_model:
+         if model_context is None:
+             try:
+diff --git a/tools/clink.py b/tools/clink.py
+index f984c8c..aa0d4c9 100644
+--- a/tools/clink.py
++++ b/tools/clink.py
+@@ -83,7 +83,7 @@ class CLinkTool(SimpleTool):
+         )
+ 
+     def get_annotations(self) -> dict[str, Any]:
+-        return {"readOnlyHint": True}
++        return {"readOnlyHint": False}
+ 
+     def requires_model(self) -> bool:
+         return False
+diff --git a/utils/model_context.py b/utils/model_context.py
+index c4015cc..043f8db 100644
+--- a/utils/model_context.py
++++ b/utils/model_context.py
+@@ -178,3 +178,16 @@ class ModelContext:
+         """Create ModelContext from tool arguments."""
+         model_name = arguments.get("model") or DEFAULT_MODEL
+         return cls(model_name)
++
++
++class CLIHistoryContext(ModelContext):
++    """Local history budget for CLI tools, not a backend capacity claim."""
++
++    def __init__(self):
++        super().__init__("cli-history-budget")
++
++    def calculate_token_allocation(self, reserved_for_response=None):
++        return TokenAllocation(
++            total_tokens=24000, content_tokens=16000, response_tokens=8000,
++            file_tokens=4000, history_tokens=8000,
++        )

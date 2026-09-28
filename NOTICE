@@ -1,0 +1,12 @@
+gpt-opus-bridge
+
+This project integrates with PAL MCP Server by BeehiveInnovations.
+https://github.com/BeehiveInnovations/pal-mcp-server
+PAL is licensed under Apache License 2.0; see third_party/PAL-LICENSE.
+patches/pal-9.8.2-clink-only.patch contains modifications to PAL and remains
+subject to that license. The patch permits provider-free CLI operation,
+adds bounded CLI history budgeting, corrects clink's edit-capable annotation,
+constrains MCP SDK compatibility, and removes unused Codex/Gemini presets.
+
+Claude Code and Codex are separate products, installed independently.
+This project is not affiliated with or endorsed by Anthropic or OpenAI.

@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+work/
+outputs/
+*.log
+*.sqlite*
+*.db
+*credentials*
+settings.json
+IMPLEMENTATION.md
+backups/
