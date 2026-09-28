@@ -17,6 +17,8 @@ flowchart LR
     G --> V[Review, test, and integrate]
 ~~~
 
+**Start here:** [How to install](#how-to-install) · [How to use](#how-to-use) · [Troubleshooting](#installation-troubleshooting)
+
 ## What works
 
 - Real Claude Code calls through PAL's clink tool.
@@ -42,45 +44,100 @@ Install these separately:
 
 The selected Claude Code version must support --restricted, --effort, and the other flags shown by claude --help. The bridge does not initiate Anthropic OAuth, change your provider, or downgrade Claude Code based on provider marketing claims.
 
-## Setup
+## How to install
 
-### 1. Confirm the existing Claude route
+Follow these steps in a terminal on the **same machine that runs Codex**. The commands below target Ubuntu/Linux and install the bridge under your user account. They do not require running Codex, Claude, or PAL as root.
 
-In CC Switch, select the intended **Claude** provider. Keep Codex's provider unchanged. The utility checks that your Claude settings include a provider URL and an API key or auth token; it does not print those credentials.
+### 1. Check prerequisites
 
-This version targets CC Switch's **direct Claude settings** mode. Local proxy mode and alternate cloud backends are not validated. Configure missing credentials in CC Switch itself, never in a prompt or a GitHub file.
+Confirm that Git and Python 3.11 or newer are available:
 
-### 2. Install the pinned PAL release
+~~~bash
+git --version
+python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"; print(sys.version.split()[0])'
+~~~
+
+On Ubuntu, if Git, Python, or curl is missing, install the missing packages through your package manager. For example:
+
+~~~bash
+sudo apt install git python3 curl
+~~~
+
+Install Claude Code and uv **only if they are missing**. These are their official installation endpoints:
+
+~~~bash
+# Claude Code: native stable installation
+curl -fsSL https://claude.ai/install.sh | bash -s -- stable
+
+# uv: Python environment and package manager
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Make user-installed commands available in this terminal
+export PATH="$HOME/.local/bin:$PATH"
+~~~
+
+If both tools are already installed, skip the installers and confirm their versions:
+
+~~~bash
+claude --version
+uv --version
+~~~
+
+Use the official links in [Status and requirements](#status-and-requirements) to install Codex and CC Switch if needed. Keep your existing Codex login and provider. The bridge does not require an Anthropic subscription login when your third-party Claude provider is already configured.
+
+### 2. Select the Claude provider in CC Switch
+
+Open CC Switch, select its **Claude** application, and activate your intended provider. For the reference setup, this is Sui-Xiang (随想), with **claude-opus-5-5** configured as the intended model.
+
+Keep Codex's provider unchanged. Add any missing credential inside CC Switch itself. Do not paste it into chat, scripts, or repository files.
+
+This installer targets **direct Claude settings** mode: CC Switch writes the provider URL and credential to ~/.claude/settings.json. The installer checks that those settings exist without printing them. Local proxy mode and alternate cloud backends are not validated by this guide.
+
+Use a model ID your provider explicitly supports. The name in these examples is not a guarantee that every provider serves that model.
+
+### 3. Clone the bridge and install PAL
+
+Choose a parent directory for the repository, then run:
 
 ~~~bash
 git clone https://github.com/tuolaji996/gpt-opus-bridge.git
 cd gpt-opus-bridge
-
-git clone --branch v9.8.2 --depth 1 \
-  https://github.com/BeehiveInnovations/pal-mcp-server.git \
-  "$HOME/.local/share/pal-mcp-server"
-
-git -C "$HOME/.local/share/pal-mcp-server" rev-parse HEAD
-# Expected: fa78edca0b6bc04ab00ddf5694d855f1b946b87d
-
-git -C "$HOME/.local/share/pal-mcp-server" apply --check \
-  "$PWD/patches/pal-9.8.2-clink-only.patch"
-git -C "$HOME/.local/share/pal-mcp-server" apply \
-  "$PWD/patches/pal-9.8.2-clink-only.patch"
-
-uv venv --python python3 "$HOME/.local/share/pal-mcp-server/.venv"
-uv pip install \
-  --python "$HOME/.local/share/pal-mcp-server/.venv/bin/python" \
-  -e "$HOME/.local/share/pal-mcp-server"
 ~~~
 
-If PAL is already installed, inspect that installation first. Also inspect any ~/.pal/cli_clients overrides and any PAL .env file: they can change client routing or enable API providers. Do not overwrite existing modifications or apply the patch twice.
+Keep subsequent commands in this repository directory. The following block installs the pinned PAL release and applies its compatibility patch. It stops at the first failed step:
 
-The patch allows a CLI-only PAL instance to start without unrelated API credentials, gives continuation history a bounded local text budget, corrects the clink permission annotation, constrains MCP to the compatible 1.x API, and removes the unused Codex/Gemini presets. See [the implementation article](docs/how-it-works.md).
+~~~bash
+(
+  set -e
+  mkdir -p "$HOME/.local/share"
+  git clone --branch v9.8.2 --depth 1 \
+    https://github.com/BeehiveInnovations/pal-mcp-server.git \
+    "$HOME/.local/share/pal-mcp-server"
 
-### 3. Preview and apply the configuration
+  test "$(git -C "$HOME/.local/share/pal-mcp-server" rev-parse HEAD)" = \
+    "fa78edca0b6bc04ab00ddf5694d855f1b946b87d"
 
-Set the arguments to your actual paths and provider-supported model ID. The command below is a **dry run**:
+  git -C "$HOME/.local/share/pal-mcp-server" apply --check \
+    "$PWD/patches/pal-9.8.2-clink-only.patch"
+  git -C "$HOME/.local/share/pal-mcp-server" apply \
+    "$PWD/patches/pal-9.8.2-clink-only.patch"
+
+  uv venv --python python3 "$HOME/.local/share/pal-mcp-server/.venv"
+  uv pip install \
+    --python "$HOME/.local/share/pal-mcp-server/.venv/bin/python" \
+    -e "$HOME/.local/share/pal-mcp-server"
+)
+~~~
+
+**Already have PAL?** Inspect that installation before proceeding. Do not overwrite existing changes or apply the patch twice. Use a separate PAL directory if you need to preserve an installation for another workflow, and pass that same directory to the configuration command below.
+
+Also inspect any ~/.pal/cli_clients overrides and any PAL .env file: they can change client routing or enable direct API providers.
+
+The patch allows CLI-only startup, supplies a bounded local budget for continuation history, corrects the clink permission annotation, constrains MCP to the compatible 1.x API, and removes unused Codex/Gemini presets. See [the implementation article](docs/how-it-works.md).
+
+### 4. Preview the configuration
+
+This is a **dry run**. It validates your paths and existing provider settings, then lists planned output files without writing them:
 
 ~~~bash
 python3 scripts/configure.py \
@@ -90,11 +147,65 @@ python3 scripts/configure.py \
   --model claude-opus-5-5
 ~~~
 
-Add --apply to write the configuration. The utility backs up existing files before editing, appends a pal MCP entry, and preserves your selected GPT model, reasoning default, existing MCP servers, and provider settings. It refuses to replace an existing pal entry.
+If your Claude executable or model differs, change the corresponding argument. For a nonstandard Codex configuration location, include --codex-config with the actual config.toml path. In particular, if you use CODEX_HOME, pass its config.toml explicitly. Use the same arguments in the apply step.
 
-By default it reads ~/.claude/settings.json, edits ~/.codex/config.toml, and writes bridge files under ~/.config/gpt-opus-bridge. Override these with --claude-settings, --codex-config, and --config-dir when necessary. If you use CODEX_HOME, explicitly pass its config.toml through --codex-config.
+### 5. Apply the configuration
 
-### 4. Use the workflow
+After the dry run succeeds, run the same command with **--apply**:
+
+~~~bash
+python3 scripts/configure.py \
+  --pal-dir "$HOME/.local/share/pal-mcp-server" \
+  --claude "$HOME/.local/bin/claude" \
+  --workspace "$HOME/Documents/opus-workspace" \
+  --model claude-opus-5-5 \
+  --apply
+~~~
+
+The utility backs up existing affected files before editing and refuses to replace an existing pal MCP entry. It preserves the selected GPT model, reasoning default, other MCP servers, and provider settings.
+
+| Default path | Purpose |
+|---|---|
+| ~/.claude/settings.json | Existing CC Switch-managed provider settings; read only. |
+| ~/.codex/config.toml | Receives the new mcp_servers.pal registration. |
+| ~/.config/gpt-opus-bridge/ | Generated launcher, Claude preset, and worker instructions. |
+| ~/.config/gpt-opus-bridge/backups/ | Private backups of existing affected files. |
+| ~/Documents/opus-workspace/ | Designated staging workspace for Claude. |
+
+Use --claude-settings, --codex-config, --config-dir, and --workspace to override these locations. Never commit generated provider settings or configuration backups.
+
+### 6. Verify the installation
+
+Run the offline tests first. They use temporary files and make no provider calls:
+
+~~~bash
+python3 -m unittest discover -s tests -v
+~~~
+
+If the Codex CLI is available in your terminal, inspect the registration with:
+
+~~~bash
+codex mcp get pal
+~~~
+
+A desktop installation may not put the Codex CLI on PATH. In that case, check the app's MCP settings instead. A visible registration confirms configuration, not a successful Claude request.
+
+For one small live coding consultation, run the command in [When the GUI does not expose PAL](#when-the-gui-does-not-expose-pal). It also works as a connection test when GUI discovery is available. The expected result is JSON containing the requested model, the matching reported model, and a reply. The call may incur a provider charge.
+
+Do not restart an app with a known startup problem to perform this test. The local MCP client can use the configured bridge while the app remains open.
+
+### Installation troubleshooting
+
+| Symptom | Next step |
+|---|---|
+| claude or uv is not found | Add ~/.local/bin to this terminal's PATH, or use the installed executable's absolute path. |
+| Missing provider URL or credential | Activate the intended Claude profile in CC Switch and check that it writes direct Claude settings. |
+| Existing mcp_servers.pal entry | Inspect the existing registration. The installer deliberately refuses to replace it; use [Rollback](#rollback) only if you intend to remove that registration. |
+| PAL patch does not apply | Check the pinned commit and existing changes. Do not apply it to a different release or apply it twice. |
+| PAL is missing from the active chat | Use the local MCP helper below; native GUI discovery is a separate check. |
+| Consultation fails or reports a different model | Check the exact provider-supported model and current CC Switch route. Do not silently switch providers or models. |
+
+## How to use
 
 See [the delegation instructions](docs/delegation-workflow.md). Start with:
 
